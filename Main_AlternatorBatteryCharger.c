@@ -61,7 +61,7 @@ MAX_MIN_REF_VALS refValsActState = {
      .altOutMin = 10.0f,
      .buckOutMin = 0.0f,
      .buckOutMax = 35.0f,
-     .currRefMax = 11.0f,
+     .currRefMax = 2.0f,
      .currRefMin = 0.0f,
 };
 
