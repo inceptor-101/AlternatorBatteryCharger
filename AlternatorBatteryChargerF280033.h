@@ -189,6 +189,7 @@ typedef struct{
 }CLOSED_LOOP_VARS;
 
 typedef struct{
+    Uint16 hardwareovercurrtrip;
     Uint16 overcurrent;
     Uint16 overvoltage;
     Uint16 undervoltage;
@@ -371,6 +372,9 @@ extern const struct PIE_VECT_TABLE PieVectTableInit;    // PieVectTableInit is a
 #define undervoltgefault (actualvalues.highvolt < refValsActState.altOutMin)
 #define overvoltagefault (actualvalues.highvolt > refValsActState.altOutMax)
 #define overoutvoltagefault (actualvalues.outputvolt > refValsStartState.buckOutMax)
+#define enablehardwaretrip (EPwm1Regs.TZEINT.bit.OST = 1)
+#define disablehardwaretrip (EPwm1Regs.TZEINT.bit.OST = 0)
+#define EPwmDown (EPwm1Regs.TZFLG.bit.OST == 1)
 #define Tbprd 300
 
 //Led turn off macros

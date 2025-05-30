@@ -20,7 +20,7 @@ void InitTripCfg(void){
          EPwm1Regs.TZCTLDCB.bit.DCBEVT1D        = 2;          // Force EPWMB to zero on down count if DCAEVT1 occurs
          EPwm1Regs.TZCTLDCB.bit.DCBEVT1U        = 2;          // Force EPWMB to zero on up count   if DCAEVT1 occurs
          EPwm1Regs.TZSEL.bit.DCAEVT1            = 1;          // DCAEVT1 trip as One Shot
-         EPwm1Regs.TZSEL.bit.OSHT3              = 1;          // TZ1 as one Shot
+         EPwm1Regs.TZSEL.bit.OSHT1             = 1;          // TZ1 as one Shot
          EPwm1Regs.TZEINT.bit.OST               = 1;          // enable One Shot Trip interrupt
      asm(" EDIS");
 }

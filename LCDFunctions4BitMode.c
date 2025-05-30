@@ -42,8 +42,8 @@ void LcdInit(void)
     Lcd_Cmd(0x08);              /*it means the display is set to off*/
     Lcd_Cmd(0x01);              /*clear display screen*/
     Delay_ms(3);
-    Lcd_Cmd(0x0c);              /*display on cursor off*/
-    Lcd_Cmd(0x0f);              /*increment cursor (shift cursor to right)*/
+    Lcd_Cmd(0x0C);              /*display on cursor off*/
+//    Lcd_Cmd(0x0f);              /*increment cursor (shift cursor to right)*/
 }
 
 void Lcd_Cmd(unsigned char value)

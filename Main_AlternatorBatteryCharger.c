@@ -52,7 +52,7 @@ MAX_MIN_REF_VALS refValsStartState = {
      .altOutMin = 15.0f,
      .buckOutMin = 0.0f,
      .buckOutMax = 30.0f,
-     .currRefMax = 3.0f,
+     .currRefMax = 2.0f,
      .currRefMin = 0.0f,
 };
 
@@ -127,6 +127,7 @@ FAULT_TYPE faultype = {
        .overoutvoltage = 0,
        .undervoltage = 0,
        .overvoltage = 0,
+       .hardwareovercurrtrip = 0,
 };
 
 //End of the structures declarations
@@ -190,7 +191,6 @@ void main(void)
     InitPieCtrl();                      // Initialize and enable the PIE (FILE: PieCtrl.c)
 
 // Initialize the Flash
-
     memcpy(&RamfuncsRunStart, &RamfuncsLoadStart, (size_t)&RamfuncsLoadSize);
     InitFlash();
 
@@ -267,25 +267,31 @@ void main(void)
 //               SCIAWrite(txData);
 //               UartDataSend = 0;
 //           }
+           if ((faultype.hardwareovercurrtrip==1) && (updateFaultOnceOnly<=1)){                        //Variable for recognising the hardware tripping
+               Lcd_Cmd(0x01);                                             //Clear Screen
+               Lcd_out(1, 1, "Hardware Trip!");
+               updateFaultOnceOnly++;
+           }//End of the trip logic
 
-           if (shiftWhatToShow == 1){                                         // In this condition we can change whether
+           if ((shiftWhatToShow == 1) && (faultype.hardwareovercurrtrip == 0)){                // In this condition we can change whether
                                                                               // to see voltage, current or temperature on the LCD display
                Lcd_Cmd(0x01);                                                 // Clearing the display before changing the display screen
                whatToShow = (whatToShow+1)%7;                                 // Actual state transition ctrl+clk to see the rest of states.
                shiftWhatToShow = 0;                                           // This variable activates only on enter pushed down, clearing it.
-           }
+           }//End of the shifting LCD logic
 
            if ((updateAfter20ms_Ctr >= delayCtrs.twenty_ms_delay)){           // In controls the frequency of update of the current selected state.
                                                                               // for now we have selected to update after 20 ms using counter
                updateAfter20ms_Ctr=0;                                         // This variable is for updating the LCD display.
-               if (faultDetected == 0){                                       // Update is activated only when there is not fault on the
+               if (faultDetected == 0  && (faultype.hardwareovercurrtrip == 0)){                                       // Update is activated only when there is not fault on the
                                                                               // pcb or other wise there will be collision for the usage of the
                    dispParamsOnLED();                                         // Actual function that is used for the updating lcd
                    updateFaultOnceOnly=0;                                     // This variable makes sure that display screen
                                                                               // command is not activated more frequently than required
                }
-               if ((faultDetected == 1) && (updateFaultOnceOnly<=1)){         // If the fault is detected we can display the cause of
-                                                                              // the fault rather than normal logic displayed
+
+               if ((faultDetected == 1) && (updateFaultOnceOnly<=1) && (faultype.hardwareovercurrtrip == 0)){          // If the fault is detected we can display the cause of
+                                                                                                                      // the fault rather than normal logic displayed
                    ledCtrlFault();
                    updateFaultOnceOnly++;
                }

@@ -424,7 +424,6 @@ interrupt void ADCA1_ISR(void)
 //
     switch (currstate){
         case volt_lim_mode:{
-//            Initialising all the LEDs to to default state of the voltage limited mode
             gridPresent_led_turnoff;            //Initialising all the leds to turn off
             fault_led_turnoff;
             invertorOn_led_turnoff;
@@ -482,8 +481,7 @@ interrupt void ADCA1_ISR(void)
                 pvPresent_led_turnoff;
             }
 
-            if (ActiveTripCond){                            //      For detecting any fault present in the supply
-                                                            //      voltage or the output current or the battery voltage
+            if (ActiveTripCond){                            //      For detecting any fault present in the supply voltage or the output current or the battery voltage
                 if (overcurrentfault){                      //      For checking for overcurrent fault
                     faultype.overcurrent = 1;               //      This variable turns on on overcurrent detection
                 }
@@ -539,13 +537,10 @@ interrupt void ADCA1_ISR(void)
                 pvPresent_led_turnoff;                              //is maintained at the desired voltage range or not
             }else{
                 pvPresent_led_turnon;                               //Even after tripping if the battery voltage stays in limit
-            };                                                      //we will keep the pv present led turned on, as it depends on
-                                                                    //volage across the terminals of the battery, and may discharge
-                                                                    //with time
+            };
 
             invertorOn_led_turnoff;                                 //Since we are in the trip state the convertor is off
-            fault_led_turnon;                                       //Fault is detected and led is tuned on to reflect the same.
-            faultDetected = 1;                                      //Indicator of the fault detection
+            fault_led_turnon;                                       //Fault is detected and led is tuned on to reflect the same.                                     //Indicator of the fault detection
 
 //            Reinitialising the PI controller variables
             closedloopmodelcurrloop.integralsum = 0.0f;             /*      \                                                                                      */
@@ -556,14 +551,13 @@ interrupt void ADCA1_ISR(void)
             closedloopmodelvoltloop.currerr = 0.0f;                 /*      /                                                                                      */
             closedloopmodelcurrloop.ref = 2.0f;                     /*     /                                                                                       */
 
-            trans_counter=0;                                        /*              Reinitialising the transition counter */
-
             duty = 0.0f;                                            /*      \                                                                                         */
             Uint16 cmpaval = (Uint16)((Tbprd)*(1-duty));            /*       |   Reinitialising the buck convertor                                                                                       */
             EPwm1Regs.CMPA.bit.CMPA = cmpaval;                      /*      /                                                                                         */
 
 //            For the five second delay not doing anything
             if (trans_counter < delayCtrs.fivesecdelaycnt){     // Dont do anything for 5secs
+                faultDetected = 1;
                 trans_counter++;
                 break;
             }
@@ -571,7 +565,17 @@ interrupt void ADCA1_ISR(void)
                 if (RestartFromTripCond){                           /*This condition is based on the startup condition and not on active state hv max and min voltages */
                     trans_counter = 0;
                     faultDetected = 0;                              //Clearing the fault indicator for removing the fault
+                    enablehardwaretrip;
                     fault_led_turnoff;
+
+                    EALLOW;
+                    EPwm1Regs.TZCLR.all = 0xFFFF;
+                    EPwm1Regs.TZOSTCLR.all = 0xFFFF;
+                    Cmpss2Regs.COMPSTSCLR.bit.LLATCHCLR = 1;
+                    Cmpss2Regs.COMPSTSCLR.bit.HLATCHCLR = 1;
+                    EDIS;
+
+                    faultype.hardwareovercurrtrip = 0;
                     currstate = volt_lim_mode;
                 }
             }
@@ -754,14 +758,21 @@ interrupt void EPWM1_TZ_ISR(void)
 //
 //
 //    }
-    Lcd_Cmd(0x01);
-    Lcd_out(1, 1, "SYSTEM TRIP");
-    Lcd_out(2, 1, "BABE RESTART!!");
+    currstate = triplogic;                 //Implementing the trip logic
+    disablehardwaretrip;                   //Disabling further interrupts
 
+//    Clearing all the flags and latches
+    EALLOW;
+    EPwm1Regs.TZCLR.all = 0xFFFF;
+    EPwm1Regs.TZOSTCLR.all = 0xFFFF;
+    Cmpss2Regs.COMPSTSCLR.bit.LLATCHCLR = 1;
+    Cmpss2Regs.COMPSTSCLR.bit.HLATCHCLR = 1;
+    EDIS;
+
+    faultype.hardwareovercurrtrip = 1;
     // To receive more interrupts from this PIE group,
     // acknowledge this interrupt.
      PieCtrlRegs.PIEACK.all = PIEACK_GROUP2;
-
 }
 
 //
