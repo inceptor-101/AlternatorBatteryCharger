@@ -48,20 +48,20 @@ SUM_INST_VALS suminstvals = {
 };
 
 MAX_MIN_REF_VALS refValsStartState = {
-     .altOutMax = 30.0f,
-     .altOutMin = 15.0f,
+     .altOutMax = 240.0f,
+     .altOutMin = 130.0f,
      .buckOutMin = 0.0f,
-     .buckOutMax = 30.0f,
-     .currRefMax = 2.0f,
+     .buckOutMax = 150.0f,
+     .currRefMax = 7.0f,
      .currRefMin = 0.0f,
 };
 
 MAX_MIN_REF_VALS refValsActState = {
-     .altOutMax = 35.0f,
-     .altOutMin = 10.0f,
+     .altOutMax = 260.0f,
+     .altOutMin = 120.0f,
      .buckOutMin = 0.0f,
-     .buckOutMax = 35.0f,
-     .currRefMax = 2.0f,
+     .buckOutMax = 150.0f,
+     .currRefMax = 7.0f,
      .currRefMin = 0.0f,
 };
 
@@ -73,12 +73,6 @@ TRIPSIGNAS tripsignals = {
      .overcurrent = 0,
 };
 
-ALT_BATT_PARAMS sensedvalues;
-ALT_BATT_PARAMS actualvalues;
-AVG_VALS avgvalues;
-NTC_RES ntcresvals;
-CORE_TEMP_INST_VALS insttempvals;
-
 CLOSED_LOOP_VARS closedloopmodelcurrloop = {
        .currerr = 0.0f,
        .preverr = 0.0f,
@@ -86,26 +80,34 @@ CLOSED_LOOP_VARS closedloopmodelcurrloop = {
        .ref = 2.0f,    // We are setting the reference current to be two amperes.
        .ki = 60.0f,
        .kp = 0.001f,
+       .ki_100_times_slower = 0.6f,
+       .kp_100_times_slower = 0.00001f,
+       .ki_5_times_faster = 300.0f,
+       .kp_5_times_faster = 0.005f,
        .sampletime = 0.00003f,      // The sampling time is to be kept at 30microseconds
-       .uppersat = 8.0f,
-       .lowersat = 0.0f,
+       .uppersat = 4.0f,
+       .lowersat = 0.5f,
 };
 
 CLOSED_LOOP_VARS closedloopmodelvoltloop = {
        .currerr = 0.0f,
        .preverr = 0.0f,
        .integralsum = 0.0f,
-       .ref = 12.0f,    // We are setting the reference current to be two amperes.
+       .ref = 122.0f,    // We are setting the reference voltage to be 12.0
        .ki = 30.0f,
        .kp = 0.01f,
+       .ki_100_times_slower = 0.2f,
+       .kp_100_times_slower = 0.00008f,
+       .ki_5_times_faster = 100.0f,
+       .kp_5_times_faster = 0.04f,
        .sampletime = 0.00003f,      // The sampling time is to be kept at 30microseconds
-       .lowersat = 0.0f,
-       .uppersat = 1.0f,
+       .lowersat = 10.0f,
+       .uppersat = 50.0f,
 };
 
 ALT_BATT_PARAMS multipliers = {
        .currsens = 0.059325f,
-       .highvolt = 0.002247191f,
+       .dcLink = 0.002247191f,
        .outputvolt = 0.00408163f,
        .heatsinkvoltsens = 0.58928571f,
        .inductorcoppvoltsens = 0.58928571f,
@@ -113,7 +115,7 @@ ALT_BATT_PARAMS multipliers = {
 };
 ALT_BATT_PARAMS offsets = {
        .currsens = 1.465f,
-       .highvolt = 0.0f,
+       .dcLink = 0.0f,
        .outputvolt = 0.0f,
        .heatsinkvoltsens = 0.0f,
        .inductorcoppvoltsens = 0.0f,
@@ -129,6 +131,12 @@ FAULT_TYPE faultype = {
        .overvoltage = 0,
        .hardwareovercurrtrip = 0,
 };
+
+ALT_BATT_PARAMS sensedvalues;
+ALT_BATT_PARAMS actualvalues;
+AVG_VALS avgvalues;
+NTC_RES ntcresvals;
+CORE_TEMP_INST_VALS insttempvals;
 
 //End of the structures declarations
 
@@ -166,12 +174,16 @@ float beta = 3977.0f;                          //For the current sensor beta val
 //LCD Declared logic variables
 volatile Uint16 shiftWhatToShow= 0;            //It is used to switch state on the LCD on clicking on  the switch
 Uint16 whatToShow = 0;                         //Keep track of the current state to show on the lcd
-float outvolt_max = 13.0;                      //For fault logic keeping the track of the max battery voltage
+float outvolt_max = 55.0;                      //For fault logic keeping the track of the max battery voltage
 float outvolt_min = 11.0;                      //For fault logic keeping the track of the min battery voltage
 
 //For updating the lcd display on find any fault
 Uint16 faultDetected = 0;
 Uint16 updateFaultOnceOnly = 0;
+Uint16 hit_ref_buck_volt_first_time = 0;
+Uint16 hit_max_buck_theshold = 0;
+float voltage_margin = 15.0f;
+float upper_thres_voltage_margin = 25.0f;
 //+++++++++++++++++++++End of the global variables+++++++++++++++++++++
 
 void main(void)
@@ -256,11 +268,16 @@ void main(void)
 
        Lcd_CreateCustomChar(0, TimerShape);      // Create emoji at location 0
        Lcd_CreateCustomChar(1, DarkCell);   // Create emoji at location 0
+//       disablehardwaretrip;
 
 //       Initial filling of the FIFO buffer for the first transmission
 //       for (; dataIdx<16 && dataIdx<DATA_LENGTH; dataIdx++){
 //           SciaRegs.SCITXBUF.bit.TXDT = txData[dataIdx];
 //       }
+       closedloopmodelvoltloop.kp_100_times_slower = closedloopmodelvoltloop.kp/100.0f;
+       closedloopmodelvoltloop.ki_100_times_slower = closedloopmodelvoltloop.ki/100.0f;
+       closedloopmodelvoltloop.kp_5_times_faster = closedloopmodelvoltloop.kp*5.0f;
+       closedloopmodelvoltloop.ki_5_times_faster = closedloopmodelvoltloop.ki*5.0f;
 
        while (1){
 //           if (UartDataSend == 1){
@@ -276,7 +293,7 @@ void main(void)
            if ((shiftWhatToShow == 1) && (faultype.hardwareovercurrtrip == 0)){                // In this condition we can change whether
                                                                               // to see voltage, current or temperature on the LCD display
                Lcd_Cmd(0x01);                                                 // Clearing the display before changing the display screen
-               whatToShow = (whatToShow+1)%7;                                 // Actual state transition ctrl+clk to see the rest of states.
+               whatToShow = (whatToShow+1)%8;                                 // Actual state transition ctrl+clk to see the rest of states.
                shiftWhatToShow = 0;                                           // This variable activates only on enter pushed down, clearing it.
            }//End of the shifting LCD logic
 

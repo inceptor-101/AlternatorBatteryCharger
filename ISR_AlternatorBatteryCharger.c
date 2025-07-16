@@ -368,7 +368,7 @@ interrupt void ADCA1_ISR(void)
 
 //    Getting the sensed values in the voltages
     sensedvalues.currsens = (AdcaResultRegs.ADCRESULT0)*(3.3f/4096.0f);
-    sensedvalues.highvolt = (AdcbResultRegs.ADCRESULT0)*(3.3f/4096.0f);
+    sensedvalues.dcLink = (AdcbResultRegs.ADCRESULT0)*(3.3f/4096.0f);
     sensedvalues.outputvolt = (AdccResultRegs.ADCRESULT0)*(3.3f/4096.0f);
     sensedvalues.heatsinkvoltsens = (AdcaResultRegs.ADCRESULT1)*(3.3f/4096.0f);
     sensedvalues.inductorcoppvoltsens = (AdcbResultRegs.ADCRESULT1)*(3.3f/4096.0f);
@@ -376,7 +376,7 @@ interrupt void ADCA1_ISR(void)
 
 //    Taking the effect of the offsets and multipliers
     actualvalues.currsens = (sensedvalues.currsens-offsets.currsens)/(multipliers.currsens);
-    actualvalues.highvolt = (sensedvalues.highvolt-offsets.highvolt)/(multipliers.highvolt);
+    actualvalues.dcLink = (sensedvalues.dcLink-offsets.dcLink)/(multipliers.dcLink);
     actualvalues.outputvolt = (sensedvalues.outputvolt-offsets.outputvolt)/(multipliers.outputvolt);
 
 //    For getting the resistances values
@@ -393,7 +393,7 @@ interrupt void ADCA1_ISR(void)
     suminstvals.sum_inst_ntcindcopptemp += insttempvals.inst_ntcindcopptemp;
     suminstvals.sum_inst_ntcindcoretemp += insttempvals.inst_ntcindcoretemp;
     suminstvals.sum_currsens += actualvalues.currsens;
-    suminstvals.sum_dclink += actualvalues.highvolt;
+    suminstvals.sum_dclink += actualvalues.dcLink;
     suminstvals.sum_outvolt += actualvalues.outputvolt;
 
     avg_vals_counter++;
@@ -421,7 +421,7 @@ interrupt void ADCA1_ISR(void)
 
 //    End of the code for the buck convertor closed loop
 //#######################Creating the state machine for the alternating battery charger##################
-//
+
     switch (currstate){
         case volt_lim_mode:{
             gridPresent_led_turnoff;            //Initialising all the leds to turn off
@@ -445,6 +445,8 @@ interrupt void ADCA1_ISR(void)
         }
 
         case one_sec_delay_mode:{
+            hit_ref_buck_volt_first_time = 0;
+            hit_max_buck_theshold = 0;
             if (!StartupCond){
                 gridPresent_led_turnoff;                                    // Grid is not present as voltage is not in limit
                 currstate = volt_lim_mode;                                  // Drawing back to the voltage limited mode.
@@ -458,6 +460,8 @@ interrupt void ADCA1_ISR(void)
             break;  // Got the system stable for 1 sec.
         }
         case two_sec_off_avg_mode:{
+            hit_ref_buck_volt_first_time = 0;
+            hit_max_buck_theshold = 0;
             if (!StartupCond){
                 gridPresent_led_turnoff;                                    // Grid is not present as voltage is not in limit
                 currstate = volt_lim_mode;                                  // Drawing back to the voltage limited mode.
@@ -507,13 +511,55 @@ interrupt void ADCA1_ISR(void)
             closedloopmodelvoltloop.currerr = closedloopmodelvoltloop.ref - actualvalues.outputvolt;
             closedloopmodelvoltloop.integralsum = closedloopmodelvoltloop.integralsum + ((closedloopmodelvoltloop.currerr + closedloopmodelvoltloop.preverr)/(2.0f))*(closedloopmodelvoltloop.sampletime);
             closedloopmodelvoltloop.preverr = closedloopmodelvoltloop.currerr;
-            closedloopmodelcurrloop.ref  = (closedloopmodelvoltloop.kp * closedloopmodelvoltloop.currerr) + (closedloopmodelvoltloop.ki * closedloopmodelvoltloop.integralsum);
 
-            if (closedloopmodelcurrloop.ref > closedloopmodelcurrloop.uppersat){
+//            Further control logic for the further dynamic kp and ki control
+            if (actualvalues.outputvolt >= closedloopmodelvoltloop.ref){
+                hit_ref_buck_volt_first_time = 1;
+            }
+
+            if ((hit_max_buck_theshold  == 1) && (actualvalues.outputvolt < closedloopmodelvoltloop.ref)){
+                hit_max_buck_theshold = 0;
+            }
+
+//          For the third condition
+            if ((hit_ref_buck_volt_first_time == 1) && (actualvalues.outputvolt >= (closedloopmodelvoltloop.ref + upper_thres_voltage_margin))){
+                hit_max_buck_theshold = 1;
+            }
+
+            if ((hit_ref_buck_volt_first_time == 0) && (hit_max_buck_theshold == 0)){
+                closedloopmodelcurrloop.ref = (closedloopmodelvoltloop.kp_100_times_slower * closedloopmodelvoltloop.currerr) + (closedloopmodelvoltloop.ki_100_times_slower * closedloopmodelvoltloop.integralsum);
+            }
+            else if ((hit_ref_buck_volt_first_time == 1) && (actualvalues.outputvolt > (closedloopmodelvoltloop.ref - voltage_margin)) && (actualvalues.outputvolt < (closedloopmodelvoltloop.ref + voltage_margin)) && (hit_max_buck_theshold == 0)){
+                closedloopmodelcurrloop.ref = (closedloopmodelvoltloop.kp * closedloopmodelvoltloop.currerr) + (closedloopmodelvoltloop.ki * closedloopmodelvoltloop.integralsum);
+            }
+            else if ((hit_ref_buck_volt_first_time == 1) && ((actualvalues.outputvolt < (closedloopmodelvoltloop.ref - voltage_margin)) || (actualvalues.outputvolt > (closedloopmodelvoltloop.ref + voltage_margin))) && (actualvalues.outputvolt < (closedloopmodelvoltloop.ref + upper_thres_voltage_margin)) && (hit_max_buck_theshold == 0)){
+                closedloopmodelcurrloop.ref = (closedloopmodelvoltloop.kp_5_times_faster * closedloopmodelvoltloop.currerr) + (closedloopmodelvoltloop.ki_5_times_faster * closedloopmodelvoltloop.integralsum);
+            }
+
+
+//            For the saturation limits
+//            if (closedloopmodelcurrloop.ref > closedloopmodelcurrloop.uppersat){
+//                closedloopmodelcurrloop.ref = closedloopmodelcurrloop.uppersat;
+//            }
+//            if (closedloopmodelcurrloop.ref < closedloopmodelcurrloop.lowersat){
+//                closedloopmodelcurrloop.ref = closedloopmodelcurrloop.lowersat;
+//            }
+
+//            Graduating the referencing current
+            float expRefCurrFromPIController  = closedloopmodelcurrloop.ref;
+            float maxSatCurrAtGivenDCLinkVoltage = (0.0117f)*actualvalues.dcLink - (1.02127f);
+
+            if (actualvalues.dcLink <= closedloopmodelvoltloop.lowersat){
+                closedloopmodelcurrloop.ref = closedloopmodelcurrloop.lowersat;
+            }
+            else if (actualvalues.dcLink >= closedloopmodelvoltloop.uppersat){
                 closedloopmodelcurrloop.ref = closedloopmodelcurrloop.uppersat;
             }
-            if (closedloopmodelcurrloop.ref < closedloopmodelcurrloop.lowersat){
-                closedloopmodelcurrloop.ref = closedloopmodelcurrloop.lowersat;
+            else if (expRefCurrFromPIController > maxSatCurrAtGivenDCLinkVoltage){
+                closedloopmodelcurrloop.ref = maxSatCurrAtGivenDCLinkVoltage;
+            }
+            else{
+                closedloopmodelcurrloop.ref = expRefCurrFromPIController;
             }
 //#####################Code for the closed loop control of the outer loop end#########################
 
@@ -521,7 +567,23 @@ interrupt void ADCA1_ISR(void)
             closedloopmodelcurrloop.currerr = closedloopmodelcurrloop.ref - actualvalues.currsens;
             closedloopmodelcurrloop.integralsum = closedloopmodelcurrloop.integralsum + ((closedloopmodelcurrloop.currerr + closedloopmodelcurrloop.preverr)/(2.0f))*(closedloopmodelcurrloop.sampletime);
             closedloopmodelcurrloop.preverr = closedloopmodelcurrloop.currerr;
+//
             duty = (closedloopmodelcurrloop.kp * closedloopmodelcurrloop.currerr) + (closedloopmodelcurrloop.ki * closedloopmodelcurrloop.integralsum);
+
+
+            if (hit_max_buck_theshold == 1){
+                duty = 0.0f;
+            }
+
+//            Stopping the controller
+            if (hit_max_buck_theshold == 1){
+                closedloopmodelcurrloop.integralsum = 0.0f;
+                closedloopmodelvoltloop.integralsum = 0.0f;
+                closedloopmodelvoltloop.preverr = 0.0f;
+                closedloopmodelcurrloop.preverr = 0.0f;
+                closedloopmodelcurrloop.currerr = 0.0f;
+                closedloopmodelvoltloop.currerr = 0.0f;
+            }
 
             //    Updating the duty cycle
             duty = (duty > 1.0f) ? 1.0f : duty;
@@ -549,7 +611,7 @@ interrupt void ADCA1_ISR(void)
             closedloopmodelcurrloop.preverr = 0.0f;                 /*        /    We need to make  sure that all the PI controller variables are initialised      */
             closedloopmodelcurrloop.currerr = 0.0f;                 /*       /                                                                                     */
             closedloopmodelvoltloop.currerr = 0.0f;                 /*      /                                                                                      */
-            closedloopmodelcurrloop.ref = 2.0f;                     /*     /                                                                                       */
+            closedloopmodelcurrloop.ref = 0.0f;                     /*     /                                                                                       */
 
             duty = 0.0f;                                            /*      \                                                                                         */
             Uint16 cmpaval = (Uint16)((Tbprd)*(1-duty));            /*       |   Reinitialising the buck convertor                                                                                       */

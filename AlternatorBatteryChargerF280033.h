@@ -77,7 +77,7 @@ extern void ledCtrlFault(void);
 
 //+++++++++++++++++Start of the structue definitions+++++++++++++++++++++
 typedef struct{
-    float highvolt;
+    float dcLink;
     float currsens;
     float outputvolt;
     float heatsinkvoltsens;
@@ -130,6 +130,7 @@ typedef enum{
     show_heat_sink_temp,
     show_ind_copp_temp,
     show_ind_core_temp,
+    show_duty_cycle,
 }lcdDisplay;
 
 typedef struct{
@@ -179,6 +180,10 @@ typedef struct{
 typedef struct{
     float kp;
     float ki;
+    float kp_100_times_slower;
+    float ki_100_times_slower;
+    float kp_5_times_faster;
+    float ki_5_times_faster;
     float ref;
     float currerr;
     float preverr;
@@ -291,6 +296,10 @@ extern volatile Uint16 dataIdTxUart;
 extern volatile Uint16 dataIdRxUart;
 extern volatile Uint32 getNewState;
 extern volatile Uint16 shiftWhatToShow;
+extern Uint16 hit_ref_buck_volt_first_time;
+extern Uint16 hit_max_buck_theshold;
+extern float voltage_margin;
+extern float upper_thres_voltage_margin;
 extern float outvolt_max;
 extern float outvolt_min;
 extern Uint16 faultDetected;
@@ -364,14 +373,14 @@ extern const struct PIE_VECT_TABLE PieVectTableInit;    // PieVectTableInit is a
 #define CalAdcdINL (void   (*)(void))0x0703AE
 
 //State variables
-#define ActiveTripCond ((actualvalues.currsens > refValsActState.currRefMax) || (actualvalues.outputvolt > refValsActState.buckOutMax) || (actualvalues.highvolt > refValsActState.altOutMax) || (actualvalues.highvolt < refValsActState.altOutMin))
-#define RestartFromTripCond ((actualvalues.currsens < refValsActState.currRefMax) && (actualvalues.outputvolt < refValsActState.buckOutMax) && (actualvalues.highvolt < refValsStartState.altOutMax) && (actualvalues.highvolt > refValsStartState.altOutMin))
-#define StartupCond ((actualvalues.highvolt < refValsStartState.altOutMax) && (actualvalues.highvolt > refValsStartState.altOutMin) && (actualvalues.outputvolt < refValsStartState.buckOutMax))
+#define ActiveTripCond ((actualvalues.currsens > refValsActState.currRefMax) || (actualvalues.outputvolt > refValsActState.buckOutMax) || (actualvalues.dcLink > refValsActState.altOutMax) || (actualvalues.dcLink < refValsActState.altOutMin))
+#define RestartFromTripCond ((actualvalues.currsens < refValsActState.currRefMax) && (actualvalues.outputvolt < refValsActState.buckOutMax) && (actualvalues.dcLink < refValsStartState.altOutMax) && (actualvalues.dcLink > refValsStartState.altOutMin))
+#define StartupCond ((actualvalues.dcLink < refValsStartState.altOutMax) && (actualvalues.dcLink > refValsStartState.altOutMin) && (actualvalues.outputvolt < refValsStartState.buckOutMax))
 #define output_volt_in_lim ((actualvalues.outputvolt >= outvolt_min) && (actualvalues.outputvolt <= outvolt_max))
 #define overcurrentfault (actualvalues.currsens > refValsActState.currRefMax)
-#define undervoltgefault (actualvalues.highvolt < refValsActState.altOutMin)
-#define overvoltagefault (actualvalues.highvolt > refValsActState.altOutMax)
-#define overoutvoltagefault (actualvalues.outputvolt > refValsStartState.buckOutMax)
+#define undervoltgefault (actualvalues.dcLink < refValsActState.altOutMin)
+#define overvoltagefault (actualvalues.dcLink > refValsActState.altOutMax)
+#define overoutvoltagefault (actualvalues.outputvolt > refValsActState.buckOutMax)
 #define enablehardwaretrip (EPwm1Regs.TZEINT.bit.OST = 1)
 #define disablehardwaretrip (EPwm1Regs.TZEINT.bit.OST = 0)
 #define EPwmDown (EPwm1Regs.TZFLG.bit.OST == 1)

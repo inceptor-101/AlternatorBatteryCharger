@@ -134,5 +134,13 @@ void dispParamsOnLED(void){
             Lcd_out(2,9, "C");
             break;
         }
+        case show_duty_cycle: {
+//            Lcd_Cmd(0x01);      //Cleared the screen
+            ptr = addInteger(duty, showData);
+            (*ptr) = '\0';
+            Lcd_out(1,1,"Duty Cycle:");
+            Lcd_out(2,1, showData);
+            break;
+        }
     }
 }
