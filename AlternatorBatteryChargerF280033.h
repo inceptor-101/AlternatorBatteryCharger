@@ -302,6 +302,7 @@ extern float voltage_margin;
 extern float upper_thres_voltage_margin;
 extern float outvolt_max;
 extern float outvolt_min;
+extern float output_voltage_margin;
 extern Uint16 faultDetected;
 extern void ledCtrl(Uint16 state);
 extern void dispParamsOnLED(void);
@@ -376,7 +377,7 @@ extern const struct PIE_VECT_TABLE PieVectTableInit;    // PieVectTableInit is a
 #define ActiveTripCond ((actualvalues.currsens > refValsActState.currRefMax) || (actualvalues.outputvolt > refValsActState.buckOutMax) || (actualvalues.dcLink > refValsActState.altOutMax) || (actualvalues.dcLink < refValsActState.altOutMin))
 #define RestartFromTripCond ((actualvalues.currsens < refValsActState.currRefMax) && (actualvalues.outputvolt < refValsActState.buckOutMax) && (actualvalues.dcLink < refValsStartState.altOutMax) && (actualvalues.dcLink > refValsStartState.altOutMin))
 #define StartupCond ((actualvalues.dcLink < refValsStartState.altOutMax) && (actualvalues.dcLink > refValsStartState.altOutMin) && (actualvalues.outputvolt < refValsStartState.buckOutMax))
-#define output_volt_in_lim ((actualvalues.outputvolt >= outvolt_min) && (actualvalues.outputvolt <= outvolt_max))
+#define output_volt_in_lim ((actualvalues.outputvolt >= (closedloopmodelvoltloop.ref - output_voltage_margin)) && (actualvalues.outputvolt <= (closedloopmodelvoltloop.ref + output_voltage_margin)))
 #define overcurrentfault (actualvalues.currsens > refValsActState.currRefMax)
 #define undervoltgefault (actualvalues.dcLink < refValsActState.altOutMin)
 #define overvoltagefault (actualvalues.dcLink > refValsActState.altOutMax)

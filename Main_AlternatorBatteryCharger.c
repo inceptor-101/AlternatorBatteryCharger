@@ -48,7 +48,7 @@ SUM_INST_VALS suminstvals = {
 };
 
 MAX_MIN_REF_VALS refValsStartState = {
-     .altOutMax = 240.0f,
+     .altOutMax = 800.0f,
      .altOutMin = 130.0f,
      .buckOutMin = 0.0f,
      .buckOutMax = 150.0f,
@@ -57,7 +57,7 @@ MAX_MIN_REF_VALS refValsStartState = {
 };
 
 MAX_MIN_REF_VALS refValsActState = {
-     .altOutMax = 260.0f,
+     .altOutMax = 820.0f,
      .altOutMin = 120.0f,
      .buckOutMin = 0.0f,
      .buckOutMax = 150.0f,
@@ -85,7 +85,7 @@ CLOSED_LOOP_VARS closedloopmodelcurrloop = {
        .ki_5_times_faster = 300.0f,
        .kp_5_times_faster = 0.005f,
        .sampletime = 0.00003f,      // The sampling time is to be kept at 30microseconds
-       .uppersat = 4.0f,
+       .uppersat = 6.0f,
        .lowersat = 0.5f,
 };
 
@@ -93,7 +93,7 @@ CLOSED_LOOP_VARS closedloopmodelvoltloop = {
        .currerr = 0.0f,
        .preverr = 0.0f,
        .integralsum = 0.0f,
-       .ref = 122.0f,    // We are setting the reference voltage to be 12.0
+       .ref = 125.0f,    // We are setting the reference voltage to be 12.0
        .ki = 30.0f,
        .kp = 0.01f,
        .ki_100_times_slower = 0.2f,
@@ -101,9 +101,10 @@ CLOSED_LOOP_VARS closedloopmodelvoltloop = {
        .ki_5_times_faster = 100.0f,
        .kp_5_times_faster = 0.04f,
        .sampletime = 0.00003f,      // The sampling time is to be kept at 30microseconds
-       .lowersat = 10.0f,
-       .uppersat = 50.0f,
+       .lowersat = 130.0f,
+       .uppersat = 600.0f,
 };
+float output_voltage_margin = 5.0f;
 
 ALT_BATT_PARAMS multipliers = {
        .currsens = 0.059325f,
